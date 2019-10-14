@@ -9,7 +9,7 @@ import zipfile
 
 from IPython import display
 from matplotlib import pyplot as plt
-
+import tensorflow.keras.backend as K
 import numpy as np
 
 
@@ -62,3 +62,10 @@ def semilogy(x_vals, y_vals, x_label, y_label, x2_vals=None, y2_vals=None,
     if x2_vals and y2_vals:
         plt.semilogy(x2_vals, y2_vals, linestyle=':')
         plt.legend(legend)
+
+
+def metric_accuracy(y_true, y_pred):
+    ytrue = K.flatten(y_true)
+    ypred = K.cast(K.argmax(y_pred, axis=-1), K.floatx())
+    acc = K.equal(ytrue, ypred)
+    return K.mean(acc)

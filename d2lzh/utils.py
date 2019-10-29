@@ -71,6 +71,20 @@ def metric_accuracy(y_true, y_pred):
     return K.mean(acc)
 
 
+def load_data_jay_lyrics():
+    """Load the Jay Chou lyric data set (available in the Chinese book)."""
+    with zipfile.ZipFile('../data/jaychou_lyrics.txt.zip') as zin:
+        with zin.open('jaychou_lyrics.txt') as f:
+            corpus_chars = f.read().decode('utf-8')
+    corpus_chars = corpus_chars.replace('\n', ' ').replace('\r', ' ')
+    corpus_chars = corpus_chars[0:10000]
+    idx_to_char = list(set(corpus_chars))
+    char_to_idx = dict([(char, i) for i, char in enumerate(idx_to_char)])
+    vocab_size = len(char_to_idx)
+    corpus_indices = [char_to_idx[char] for char in corpus_chars]
+    return corpus_indices, corpus_chars, char_to_idx, idx_to_char, vocab_size
+
+
 def data_iter_random(corpus_indices, batch_size, num_steps, ctx=None):
     # 减1是因为输出的索引是相应输入的索引加1
     num_examples = (len(corpus_indices) - 1) // num_steps

@@ -9,6 +9,7 @@ import zipfile
 
 from IPython import display
 from matplotlib import pyplot as plt
+from tensorflow import keras
 import tensorflow.keras.backend as K
 import numpy as np
 
@@ -117,3 +118,42 @@ def data_iter_consecutive(corpus_indices, batch_size, num_steps):
         X = indices[:, i: i + num_steps]
         Y = indices[:, i + 1: i + num_steps + 1]
         yield X, Y
+
+
+def predict_rnn_gluon(prefix, num_chars, model, vocab_size, idx_to_char, char_to_idx, num_steps):
+    output = np.array([char_to_idx[prefix[idx]] for idx in range(len(prefix))])
+    for t in range(num_chars + len(prefix) - 1):
+        # print(output)
+        X = keras.utils.to_categorical(output[-num_steps : ], vocab_size)
+        # print('X', X.shape, output[-num_steps : ])
+        Y = model.predict(X.reshape(1, num_steps, vocab_size))  # 引入batch=1维度
+        if t < len(prefix) - 1:
+            # output = np.append(output, char_to_idx[prefix[t + 1]])
+            pass
+        else:
+            output = np.append(output, int(Y.argmax(axis=-1)))
+    return ''.join([idx_to_char[i] for i in output])
+
+
+def train_and_predict_rnn_gluon(model, vocab_size, corpus_indices, idx_to_char, char_to_idx,
+                                num_epochs, num_steps, lr, clipping_theta,
+                                batch_size, pred_period, pred_len, prefixes):
+    model.compile(
+        optimizer='adam',  # keras.optimizers.SGD(learning_rate=lr, momentum=0, decay=0, clipvalue=1),
+        loss=keras.losses.categorical_crossentropy)
+
+    for epoch in range(num_epochs):
+        data_iter = data_iter_consecutive(corpus_indices, batch_size, num_steps)
+        for X, Y in data_iter:
+            x = keras.utils.to_categorical(X, vocab_size)
+            y = keras.utils.to_categorical(Y[:, -1], vocab_size)
+            # print(x.shape, y.shape)
+            model.train_on_batch(x.reshape(batch_size, num_steps, vocab_size), y)
+
+        # print(epoch, pred_period)
+        if (epoch + 1) % pred_period == 0:
+            for prefix in prefixes:
+                print(' -', predict_rnn_gluon(
+                    prefix, pred_len, model, vocab_size, idx_to_char,
+                    char_to_idx, num_steps))
+

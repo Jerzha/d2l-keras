@@ -10,6 +10,7 @@ import zipfile
 from IPython import display
 from matplotlib import pyplot as plt
 from tensorflow import keras
+import tensorflow as tf
 import tensorflow.keras.backend as K
 import numpy as np
 
@@ -181,3 +182,51 @@ def get_data_ch7():  # 本函数已保存在d2lzh包中方便以后使用
     data = (data - data.mean(axis=0)) / data.std(axis=0)
     return np.array(data[:1500, :-1]), np.array(data[:1500, -1])
 
+
+class Residual(keras.layers.Layer):
+    def __init__(self, num_channels, use_1x1conv=False, strides=1, *args, **kwargs):
+        super(Residual, self).__init__(*args, **kwargs)
+        self.conv1 = keras.layers.Conv2D(num_channels, kernel_size=3, padding='same', strides=strides)
+        self.conv2 = keras.layers.Conv2D(num_channels, kernel_size=3, padding='same')
+
+        if use_1x1conv:
+            self.conv3 = keras.layers.Conv2D(num_channels, kernel_size=1, strides=strides)
+        else:
+            self.conv3 = None
+
+        self.bn1 = keras.layers.BatchNormalization()
+        self.bn2 = keras.layers.BatchNormalization()
+
+    def call(self, inputs, training=None, mask=None):
+        Y = keras.layers.ReLU()(self.bn1(self.conv1(inputs)))
+        Y = self.bn2(self.conv2(Y))
+        if self.conv3:
+            inputs = self.conv3(inputs)
+        return keras.layers.ReLU()(Y + inputs)
+
+
+def resnet18(num_class):
+    def resnet_block(model, num_channels, num_residuals, first_block=False):
+        for i in range(num_residuals):
+            if i == 0 and not first_block:
+                model.add(Residual(num_channels, use_1x1conv=True, strides=2))
+            else:
+                model.add(Residual(num_channels))
+        return model
+
+    model = keras.Sequential()
+    #model.add(keras.layers.Lambda(lambda img: tf.image.resize(img, (224, 224)), input_shape=(32, 32, 3)))
+    model.add(keras.layers.Conv2D(64, kernel_size=7, strides=2, padding='same')) # input_shape=(224, 224, 3)))
+    model.add(keras.layers.BatchNormalization())
+    model.add(keras.layers.ReLU())
+    model.add(keras.layers.MaxPool2D(pool_size=3, strides=2, padding='same'))
+
+    resnet_block(model, 64, 2, first_block=True),
+    resnet_block(model, 128, 2),
+    resnet_block(model, 256, 2),
+    resnet_block(model, 512, 2)
+
+    model.add(keras.layers.GlobalAveragePooling2D())
+    model.add(keras.layers.Dense(num_class))
+    model.add(keras.layers.Softmax())
+    return model

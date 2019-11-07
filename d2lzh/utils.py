@@ -21,7 +21,7 @@ def show_images(imgs, num_rows, num_cols, scale=2):
     _, axes = plt.subplots(num_rows, num_cols, figsize=figsize)
     for i in range(num_rows):
         for j in range(num_cols):
-            axes[i][j].imshow(imgs[i * num_cols + j].asnumpy())
+            axes[i][j].imshow(imgs[i * num_cols + j])
             axes[i][j].axes.get_xaxis().set_visible(False)
             axes[i][j].axes.get_yaxis().set_visible(False)
     return axes
@@ -230,3 +230,11 @@ def resnet18(num_class):
     model.add(keras.layers.Dense(num_class))
     model.add(keras.layers.Softmax())
     return model
+
+
+def bbox_to_rect(bbox, color):
+    # 将边界框(左上x, 左上y, 右下x, 右下y)格式转换成matplotlib格式：
+    # ((左上x, 左上y), 宽, 高)
+    return plt.Rectangle(
+        xy=(bbox[0], bbox[1]), width=bbox[2]-bbox[0], height=bbox[3]-bbox[1],
+        fill=False, edgecolor=color, linewidth=2)

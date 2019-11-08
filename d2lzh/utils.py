@@ -238,3 +238,59 @@ def bbox_to_rect(bbox, color):
     return plt.Rectangle(
         xy=(bbox[0], bbox[1]), width=bbox[2]-bbox[0], height=bbox[3]-bbox[1],
         fill=False, edgecolor=color, linewidth=2)
+
+
+def show_bboxes(axes, bboxes, labels=None, colors=None):
+    def _make_list(obj, default_values=None):
+        if obj is None:
+            obj = default_values
+        elif not isinstance(obj, (list, tuple)):
+            obj = [obj]
+        return obj
+
+    labels = _make_list(labels)
+    colors = _make_list(colors, ['b', 'g', 'r', 'm', 'c'])
+    for i, bbox in enumerate(bboxes):
+        color = colors[i % len(colors)]
+        rect = bbox_to_rect(bbox, color)
+        axes.add_patch(rect)
+        if labels and len(labels) > i:
+            text_color = 'k' if color == 'w' else 'w'
+            axes.text(rect.xy[0], rect.xy[1], labels[i],
+                      va='center', ha='center', fontsize=9, color=text_color,
+                      bbox=dict(facecolor=color, lw=0))
+
+
+# return:  (b, an, 4) 4-> (x1/w, y1/h, x2/w, y2/h)
+def MultiBoxPrior(X, sizes, ratios, do_reduce=True):
+    Y = []
+
+    def foreach_radio_sizes(x, y, h, w, p):
+        flag_first_size = True
+        for ratio in ratios:
+            flag_pass = False
+            for size in sizes:
+                if flag_pass:
+                    continue
+                if not flag_first_size and do_reduce:
+                    flag_pass = True
+                tw = w * size * np.sqrt(ratio)
+                th = h * size / np.sqrt(ratio)
+
+                x1 = (x - tw / 2) / w
+                y1 = (y - th / 2) / h
+                x2 = (x + tw / 2) / w
+                y2 = (y + th / 2) / h
+                p.append((x1, y1, x2, y2))
+            flag_first_size = False
+        return p
+
+    # for b in X:
+    batch = []
+    h, w = X.shape[1:3]
+    for y in range(h):
+        for x in range(w):
+            foreach_radio_sizes(x+0.5, y+0.5, h, w, batch)
+    Y.append(batch)
+
+    return np.array(Y)

@@ -1,17 +1,14 @@
-import collections
-import math
-import os
 import random
-import sys
-import tarfile
-import time
 import zipfile
+import json
+import pandas as pd
 
 from IPython import display
 from matplotlib import pyplot as plt
 from tensorflow import keras
 import tensorflow as tf
 import tensorflow.keras.backend as K
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
 import numpy as np
 
 
@@ -261,8 +258,10 @@ def show_bboxes(axes, bboxes, labels=None, colors=None):
                       bbox=dict(facecolor=color, lw=0))
 
 
+# 通过feature map锚框的sizes radios参数，生成锚框
 # return:  (b, an, 4) 4-> (x1/w, y1/h, x2/w, y2/h)
 def MultiBoxPrior(X, sizes, ratios, do_reduce=True):
+    assert (len(X.shape) == 4)
     Y = []
 
     def foreach_radio_sizes(x, y, h, w, p):
@@ -287,10 +286,296 @@ def MultiBoxPrior(X, sizes, ratios, do_reduce=True):
 
     # for b in X:
     batch = []
-    h, w = X.shape[1:3]
+    if isinstance(X, np.ndarray):
+        h, w = X.shape[1:3]
+    else:
+        if len(X.shape.as_list()) == 4:
+            h, w = X.shape.as_list()[1:3]
+        else:
+            h = w = 1
+
     for y in range(h):
         for x in range(w):
-            foreach_radio_sizes(x+0.5, y+0.5, h, w, batch)
+            foreach_radio_sizes(x + 0.5, y + 0.5, h, w, batch)
     Y.append(batch)
 
     return np.array(Y)
+
+
+def iou(a, b):
+    def intersection(ai, bi):
+        x = max(ai[0], bi[0])
+        y = max(ai[1], bi[1])
+        w = min(ai[2], bi[2]) - x
+        h = min(ai[3], bi[3]) - y
+        if w < 0 or h < 0:
+            return 0
+        return w * h
+
+    def union(au, bu, area_intersection):
+        area_a = (au[2] - au[0]) * (au[3] - au[1])
+        area_b = (bu[2] - bu[0]) * (bu[3] - bu[1])
+        area_union = area_a + area_b - area_intersection
+        return area_union
+
+    if a[0] >= a[2] or a[1] >= a[3] or b[0] >= b[2] or b[1] >= b[3]:
+        return 0.0
+
+    area_i = intersection(a, b)
+    area_u = union(a, b, area_i)
+    return float(area_i) / float(area_u + 1e-6)
+
+
+# 根据每个锚框生成当前batch数据基于锚框的标签和偏移
+# anchor: anchor box (1, an, 4)
+# label: label (b, gtn, 5)  5 -> (category, x1, y1, x2, y2)
+# cls_pred: anchor pred (b, clz+1, an)
+# return:
+# bbox_offset: anchor offsets (b, an * 4)
+# bbox_mask:
+# cls_labels
+def MultiBoxTarget(anchor, label, thresh=0.5):
+    assert (len(anchor.shape) == 3 and anchor.shape[2] == 4)
+    assert (len(label[0].shape) == 2 and label[0].shape[1] == 5)
+
+    # a = anchor
+    # b = gt
+    def calc_offset(idx, offset, a, b):
+        ux = uy = uw = uh = 0
+        ax = ay = 0.1
+        aw = ah = 0.2
+        wa = a[2] - a[0]
+        ha = a[3] - a[1]
+        wb = b[2] - b[0]
+        hb = b[3] - b[1]
+        xa = a[0] + wa / 2  # centor points
+        ya = a[1] + ha / 2  # centor points
+        xb = b[0] + wb / 2  # centor points
+        yb = b[1] + hb / 2  # centor points
+        x1 = ((xb - xa) / wa - ux) / ax
+        y1 = ((yb - ya) / ha - uy) / ay
+        w1 = (np.log(wb / wa) - uw) / aw
+        h1 = (np.log(hb / ha) - uh) / ah
+        offset[idx * 4 + 0] = x1
+        offset[idx * 4 + 1] = y1
+        offset[idx * 4 + 2] = w1
+        offset[idx * 4 + 3] = h1
+
+    bbox_offset = []
+    bbox_mask = []
+    cls_labels = []
+    for batch_idx in range(len(label)):
+        ious = []  # (label_n, anchor_n)
+        offset = [0. for _ in range(len(anchor[0]) * 4)]
+        mask = [1. for _ in range(len(anchor[0]) * 4)]
+        clabels = [0. for _ in range(len(anchor[0]))]
+        for gt in label[batch_idx]:
+            ious_label = []
+            for anc in anchor[0]:
+                ious_label.append(iou(gt[1:5], anc))
+            ious.append(ious_label)
+        ious = np.array(ious)
+        ious2 = np.copy(ious)
+
+        num_posv = 0
+        num_negv = 0
+        for _ in range(len(label[batch_idx])):
+            max_iou_idx = np.argmax(ious)
+            max_iou_idx = np.unravel_index(max_iou_idx, ious.shape)
+            clabels[max_iou_idx[1]] = max_iou_idx[0] + 1  # bg is 0, others + 1
+            ious[max_iou_idx[0], :] = -1
+            ious[:, max_iou_idx[1]] = -1
+            num_posv += 1
+
+        # second scan
+        for anidx in range(len(clabels)):
+            if clabels[anidx] != 0:
+                calc_offset(anidx, offset, anchor[0, anidx, :], label[batch_idx][clabels[anidx] - 1, 1:5])
+                continue
+            max_iou_idx = np.argmax(ious2[:, anidx])
+            score = ious2[max_iou_idx, anidx]
+            if score > thresh:
+                clabels[anidx] = max_iou_idx + 1
+                calc_offset(anidx, offset, anchor[0, anidx, :], label[batch_idx][clabels[anidx] - 1, 1:5])
+                num_posv += 1
+            else:
+                clabels[anidx] = 0
+                num_negv += 1
+                mask[anidx * 4 + 0] = 0.
+                mask[anidx * 4 + 1] = 0.
+                mask[anidx * 4 + 2] = 0.
+                mask[anidx * 4 + 3] = 0.
+
+        bbox_offset.append(offset)
+        bbox_mask.append(mask)
+        cls_labels.append(clabels)
+    return np.array(bbox_offset), np.array(bbox_mask), np.array(cls_labels)
+
+
+# cls_prob : predicted prob of each anchor (b, an, clz+1)
+# anchor : anchor box (1, an * 4)
+# threshold : nms threshold
+# return: (b, new_an, 6)
+#  6-> (category, prob, x1, y1, x2, y2)
+#  category = -1 : useless
+def NMS(cls_prob, bbox, threshold=0.5):
+    output = []
+    for bn in range(len(cls_prob)):
+        # concat
+        c = np.argmax(cls_prob[bn], axis=1)
+        c1 = np.expand_dims(c, axis=-1)
+        p = np.max(cls_prob[bn], axis=1)
+        p1 = np.expand_dims(p, axis=-1)
+
+        La = np.concatenate((c1, p1, bbox[bn]), axis=1)
+
+        # delete bg (-1)
+        id0 = np.argwhere(c == 0)
+        La[id0, 0] = -1
+
+        deleted = La[La[:, 0] == -1, :]
+        La = np.delete(La, id0.reshape(-1), axis=0)
+        p = np.delete(p, id0.reshape(-1), axis=0)
+
+        # sort
+        cls_sort_idx = np.argsort(-p, axis=0)
+        Ls = La[cls_sort_idx]
+
+        for topidx in range(len(Ls)):
+            if topidx >= len(Ls):
+                break
+            box_top = Ls[topidx, 2:6]
+            for othidx in range(topidx + 1, len(Ls)):
+                if othidx >= len(Ls):
+                    break
+
+                box_oth = Ls[othidx, 2:6]
+                IoU = iou(box_top, box_oth)
+                if IoU > threshold:
+                    Ls[othidx, 0] = -1
+
+        deleted = np.concatenate((deleted, Ls[Ls[:, 0] == -1, :]))
+        id_1 = np.argwhere(Ls[:, 0] == -1)
+        Ls = np.delete(Ls, id_1.reshape(-1), axis=0)
+        Ls[:, 0] -= 1
+        output.append(np.concatenate((Ls, deleted)))
+    return np.array(output)
+
+
+def offset_to_loc(anchors, cls_preds, bbox_preds):
+    # print(len(cls_preds), len(anchors[0]))
+    bbox_preds = bbox_preds.reshape((len(cls_preds), len(anchors[0]), 4))
+    # print('bbox shape=', bbox_preds.shape())
+    ux = uy = uw = uh = 0
+    ax = ay = 0.1
+    aw = ah = 0.2
+
+    batch_bbox = []
+    for bn in range(len(cls_preds)):
+        c = np.argmax(cls_preds[bn], axis=1)
+        c1 = np.expand_dims(c, axis=-1)
+        bbox = []
+        for bbox_idx in range(len(c1)):
+            an_x1 = anchors[0, bbox_idx, 0]
+            an_y1 = anchors[0, bbox_idx, 1]
+            an_x2 = anchors[0, bbox_idx, 2]
+            an_y2 = anchors[0, bbox_idx, 3]
+
+            # print(c1[bbox_idx])
+            # if c1[bbox_idx] == 0:
+            #     bbox.append([an_x1, an_y1, an_x2, an_y2])
+            #     continue
+
+            # print(an_x1, an_y1, an_x2, an_y2)
+
+            # print(bbox_preds)
+            off_xc = bbox_preds[bn, bbox_idx, 0]
+            off_yc = bbox_preds[bn, bbox_idx, 1]
+            off_w = bbox_preds[bn, bbox_idx, 2]
+            off_h = bbox_preds[bn, bbox_idx, 3]
+            # print('-', off_xc, off_yc, off_w, off_h)
+
+            wa = an_x2 - an_x1
+            ha = an_y2 - an_y1
+            xa = an_x1 + wa / 2  # centor points
+            ya = an_y1 + ha / 2  # centor points
+
+            xb = (off_xc * ax + ux) * wa + xa
+            yb = (off_yc * ay + uy) * ha + ya
+            wb = np.exp(off_w * aw + uw) * wa
+            hb = np.exp(off_h * ah + uh) * ha
+
+            # print('>>', xb, yb, wb, hb)
+            bbox.append([xb - wb / 2, yb - hb / 2, xb + wb / 2, yb + hb / 2])
+        batch_bbox.append(bbox)
+    return np.array(batch_bbox)
+
+
+class PikachuDataGenerator(keras.utils.Sequence):
+    def __init__(self, anchors, target_size=(256, 256), batch_size=32, num_class=1, shuffle=True, is_train=True, data_dir = 'data/pikachu'):
+        self.anchors = anchors
+        self.num_class = num_class
+        self.batch_size = batch_size
+        self.shuffle = shuffle
+        self.gen = ImageDataGenerator()
+        self.debug_y = None
+        self.cls_onehot = False
+
+        if is_train:
+            json_path = data_dir + '/train/annotations.json'
+            img_path = data_dir + '/train/images/'
+        else:
+            json_path = data_dir + '/val/annotations.json'
+            img_path = data_dir + "/val/images/"
+
+        with open(json_path) as f:
+            data_list = json.load(f)
+            data = [[img_path + data_list[d]['image'], np.array([[data_list[d]['class']] + data_list[d]['loc']])]
+                    for d in data_list]
+            dataframe = pd.DataFrame(data, columns=['image', 'label'])
+            self.len = len(dataframe.index)
+
+        self.iter = self.gen.flow_from_dataframe(
+            dataframe=dataframe,
+            directory=None,
+            x_col='image',
+            y_col='label',
+            class_mode='raw',
+            batch_size=batch_size,
+            target_size=target_size,
+            shuffle=shuffle
+        )
+
+    def __getitem__(self, index):
+        x, y = self.iter.next()
+        self.debug_y = y
+        off, mask, cls = MultiBoxTarget(self.anchors, y)
+        # loc_mask = np.stack((off, mask), axis=-1)
+        # print(cls.shape, self.num_class)
+        if self.cls_onehot:
+            cls = np.array([self.to_categorical(batch, self.num_class+1) for batch in cls])
+        return x, [cls, off, mask]
+
+    # return: x, [cls, loc_mask]
+    # x:        (b, w, h, 3)
+    # cls:      (b, an)
+    # loc_mask: (b, an * 4, 2) -> 2: [offset, mask]
+    def getitem(self):
+        return self.__getitem__(0)
+
+    # return: (b, 5) -> 5: [class, x1, y1, x2, y2]
+    def gety(self):
+        return self.debug_y
+
+    def __len__(self):
+        return (self.len // self.batch_size) + 1
+
+
+def load_data_pikachu(anchors, batch_size, edge_size=256, data_dir='../data/pikachu'):  # edge_size：输出图像的宽和高
+    train_iter = PikachuDataGenerator(
+        anchors, data_dir=data_dir,
+        target_size=(edge_size, edge_size), batch_size=batch_size, shuffle=True, is_train=True)
+    val_iter = PikachuDataGenerator(
+        anchors, data_dir=data_dir,
+        target_size=(edge_size, edge_size), batch_size=5, shuffle=False, is_train=False)
+    return train_iter, val_iter

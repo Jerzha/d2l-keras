@@ -3,13 +3,15 @@ import zipfile
 import json
 import pandas as pd
 
-from IPython import display
 from matplotlib import pyplot as plt
 from tensorflow import keras
+import os
+import skimage.io
 import tensorflow as tf
 import tensorflow.keras.backend as K
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 import numpy as np
+import time
 
 
 def show_images(imgs, num_rows, num_cols, scale=2):
@@ -26,6 +28,7 @@ def show_images(imgs, num_rows, num_cols, scale=2):
 
 def use_svg_display():
     """Use svg format to display plot in jupyter"""
+    from IPython import display
     display.set_matplotlib_formats('svg')
 
 
@@ -579,3 +582,105 @@ def load_data_pikachu(anchors, batch_size, edge_size=256, data_dir='../data/pika
         anchors, data_dir=data_dir,
         target_size=(edge_size, edge_size), batch_size=5, shuffle=False, is_train=False)
     return train_iter, val_iter
+
+
+def download_voc_pascal(data_dir='data'):
+    voc_dir = os.path.join(data_dir, 'VOCdevkit/VOC2012')
+    url = ('http://host.robots.ox.ac.uk/pascal/VOC/voc2012'
+           '/VOCtrainval_11-May-2012.tar')
+    sha1 = '4e443f8a2eca6b1dac8a6c57641b67dd40621a49'
+
+    # 用下载工具下更快
+    # fname = keras.utils.get_file(
+    #     fname='VOCtrainval_11-May-2012.tar',
+    #     cache_dir=voc_dir,
+    #     origin=url,
+    #     extract=True,
+    #     hash_algorithm='sha1',
+    #     file_hash=sha1)
+
+    return voc_dir
+
+
+def read_voc_images(root='data/VOCdevkit/VOC2012', is_train=True):
+    txt_fname = '%s/ImageSets/Segmentation/%s' % (
+        root, 'train.txt' if is_train else 'val.txt')
+    with open(txt_fname, 'r') as f:
+        images = f.read().split()
+    features, labels = [None] * len(images), [None] * len(images)
+    for i, fname in enumerate(images):
+        features[i] = skimage.io.imread('%s/JPEGImages/%s.jpg' % (root, fname))
+        labels[i] = skimage.io.imread(
+            '%s/SegmentationClass/%s.png' % (root, fname))
+    return features, labels
+
+
+def voc_label_indices(colormap, colormap2label):
+    colormap = colormap.astype('int32')
+    idx = ((colormap[:, :, 0] * 256 + colormap[:, :, 1]) * 256
+           + colormap[:, :, 2])
+    return colormap2label[idx]
+
+
+def voc_rand_crop(feature, label, height, width):
+    combine = tf.concat([tf.cast(feature, tf.float64), tf.cast(label, tf.float64)], axis=2)
+    combine = tf.image.random_crop(combine, (height, width, 6))
+    return combine[:,:,0:3].numpy(), combine[:,:,3:6].numpy()
+
+
+class VOCSegDataset(keras.utils.Sequence):
+    def __init__(self, is_train, crop_size, voc_dir, colormap2label, batch_size=32):
+        super().__init__()
+        self.batch_size = batch_size
+        self.rgb_mean = np.array([0.485, 0.456, 0.406])
+        self.rgb_std = np.array([0.229, 0.224, 0.225])
+        self.crop_size = crop_size
+        features, labels = read_voc_images(root=voc_dir, is_train=is_train)
+        self.features = [self.normalize_image(feature)
+                         for feature in self.filter(features)]
+        self.labels = self.filter(labels)
+        self.colormap2label = colormap2label
+        print('read ' + str(len(self.features)) + ' examples')
+        self.idx = 0
+
+    def normalize_image(self, img):
+        return (img.astype('float32') / 255 - self.rgb_mean) / self.rgb_std
+
+    def filter(self, imgs):
+        return [img for img in imgs if (
+                img.shape[0] >= self.crop_size[0] and
+                img.shape[1] >= self.crop_size[1])]
+
+    def getitem(self, index):
+        feature, label = voc_rand_crop(self.features[index], self.labels[index],
+                                       *self.crop_size)
+        return (feature,
+                voc_label_indices(label, self.colormap2label))
+
+    def __getitem__(self, item):
+        batch_x = []
+        batch_y = []
+        for i in range(self.batch_size):
+            x, y = self.getitem(self.idx)
+            batch_x.append(x)
+            batch_y.append(y)
+            self.idx += 1
+            if self.idx >= len(self.features):
+                self.idx = 0
+        return np.array(batch_x), np.array(batch_y)
+
+    def __len__(self):
+        return len(self.features) // self.batch_size
+
+
+VOC_COLORMAP = [[0, 0, 0], [128, 0, 0], [0, 128, 0], [128, 128, 0],
+                [0, 0, 128], [128, 0, 128], [0, 128, 128], [128, 128, 128],
+                [64, 0, 0], [192, 0, 0], [64, 128, 0], [192, 128, 0],
+                [64, 0, 128], [192, 0, 128], [64, 128, 128], [192, 128, 128],
+                [0, 64, 0], [128, 64, 0], [0, 192, 0], [128, 192, 0],
+                [0, 64, 128]]
+
+VOC_CLASSES = ['background', 'aeroplane', 'bicycle', 'bird', 'boat',
+               'bottle', 'bus', 'car', 'cat', 'chair', 'cow',
+               'diningtable', 'dog', 'horse', 'motorbike', 'person',
+               'potted plant', 'sheep', 'sofa', 'train', 'tv/monitor']

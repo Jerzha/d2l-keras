@@ -4,7 +4,7 @@
 * Chinese Edition : zh.d2l.ai
 * English MXNet Code： https://github.com/d2l-ai/d2l-en
 * Chinese MXNet Code： https://github.com/d2l-ai/d2l-zh
-* [Chinese Readme](https://github.com/Jerzha/d2l-keras/blob/master/README_zh.md)
+* [中文说明和目录](https://github.com/Jerzha/d2l-keras/blob/master/README_zh.md)
 
 ## Notes:
 

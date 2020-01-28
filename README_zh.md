@@ -62,6 +62,7 @@
 * [9.8 区域卷积神经网络 RCNN系列](https://nbviewer.jupyter.org/github/Jerzha/d2l-keras/blob/master/chapter9/9.8_rcnn.ipynb)
 * [9.9 语意分割与数据集](https://nbviewer.jupyter.org/github/Jerzha/d2l-keras/blob/master/chapter9/9.9_semantic_segmentation.ipynb)
 * [9.10 全卷积网络 FCN](https://nbviewer.jupyter.org/github/Jerzha/d2l-keras/blob/master/chapter9/9.10_fully_convolutional_network.ipynb)
+* [9.11 样式迁移](https://nbviewer.jupyter.org/github/Jerzha/d2l-keras/blob/master/chapter9/9.11_neural_style_transfer.ipynb)
 * 更新中...
 
 ## 英文版引用

@@ -63,6 +63,7 @@
 * [9.8 RCNN](https://nbviewer.jupyter.org/github/Jerzha/d2l-keras/blob/master/chapter9/9.8_rcnn.ipynb)
 * [9.9 Semantic Segmentation](https://nbviewer.jupyter.org/github/Jerzha/d2l-keras/blob/master/chapter9/9.9_semantic_segmentation.ipynb)
 * [9.10 Fully Convolutional Network](https://nbviewer.jupyter.org/github/Jerzha/d2l-keras/blob/master/chapter9/9.10_fully_convolutional_network.ipynb)
+* [9.11 Neural Style Transfer](https://nbviewer.jupyter.org/github/Jerzha/d2l-keras/blob/master/chapter9/9.11_neural_style_transfer.ipynb)
 * UPDATING...
 
 ## Cite

@@ -11,6 +11,7 @@
 1. Dynamic computation graph is not supported in Keras, so I use numpy or tensorflow2.0 instead.
 2. I didn't copy the book here. There's only titles and code here.
 3. It use livelossplot for tracking training loss and acc.
+4. Suggest opening chapter from contents as below, it use nbviewer to render jupyter.
 
 ## Contents:
 
@@ -64,7 +65,7 @@
 * [9.9 Semantic Segmentation](https://nbviewer.jupyter.org/github/Jerzha/d2l-keras/blob/master/chapter9/9.9_semantic_segmentation.ipynb)
 * [9.10 Fully Convolutional Network](https://nbviewer.jupyter.org/github/Jerzha/d2l-keras/blob/master/chapter9/9.10_fully_convolutional_network.ipynb)
 * [9.11 Neural Style Transfer](https://nbviewer.jupyter.org/github/Jerzha/d2l-keras/blob/master/chapter9/9.11_neural_style_transfer.ipynb)
-* [9.12_Kaggle Cifar10](https://nbviewer.jupyter.org/github/Jerzha/d2l-keras/blob/master/chapter9/9.12_kaggle_cifar10.ipynb)
+* [9.12 Kaggle Cifar10](https://nbviewer.jupyter.org/github/Jerzha/d2l-keras/blob/master/chapter9/9.12_kaggle_cifar10.ipynb)
 * UPDATING...
 
 ## Cite

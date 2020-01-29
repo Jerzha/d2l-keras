@@ -7,8 +7,9 @@
 
 1. Keras不支持动态图，所以有些部分代码是使用numpy或者tf2.0来写的
 2. 我没有拷贝整本书的内容过来，该项目仅有中文标题和keras实现的代码，可能还有一些笔记
-3. 由于中途TF2.0发布了，所以后续可能代码会转向使用tf.keras，毕竟他针对运行速度的优化实在太棒了。
+3. 由于中途TF2.0发布了，所以后续可能代码会转向使用tf.keras，毕竟他针对运行速度的优化实在太棒了
 4. 为了方便Jupyter显示训练动态，我使用了livelossplot库
+5. 建议从下方目录点开章节，因为用了nbviewer来渲染jupyter，避免了github经常渲染不了的问题。
 
 
 ## 目录:
@@ -63,6 +64,7 @@
 * [9.9 语意分割与数据集](https://nbviewer.jupyter.org/github/Jerzha/d2l-keras/blob/master/chapter9/9.9_semantic_segmentation.ipynb)
 * [9.10 全卷积网络 FCN](https://nbviewer.jupyter.org/github/Jerzha/d2l-keras/blob/master/chapter9/9.10_fully_convolutional_network.ipynb)
 * [9.11 样式迁移](https://nbviewer.jupyter.org/github/Jerzha/d2l-keras/blob/master/chapter9/9.11_neural_style_transfer.ipynb)
+* [9.12 实战Kaggle竞赛: 图像分类 Cifar10](https://nbviewer.jupyter.org/github/Jerzha/d2l-keras/blob/master/chapter9/9.12_kaggle_cifar10.ipynb)
 * 更新中...
 
 ## 英文版引用

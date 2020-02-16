@@ -66,7 +66,7 @@
 * [9.11 样式迁移](https://nbviewer.jupyter.org/github/Jerzha/d2l-keras/blob/master/chapter9/9.11_neural_style_transfer.ipynb)
 * [9.12 实战Kaggle竞赛: 图像分类 Cifar10](https://nbviewer.jupyter.org/github/Jerzha/d2l-keras/blob/master/chapter9/9.12_kaggle_cifar10.ipynb)
 #### 第十章 自然语言处理
-* [10.3 Word2vec](https://nbviewer.jupyter.org/github/Jerzha/d2l-keras/blob/master/chapter10/10.3_word2vec.ipynb)
+* [10.3 Word2vec的实现](https://nbviewer.jupyter.org/github/Jerzha/d2l-keras/blob/master/chapter10/10.3_word2vec.ipynb)
 * 更新中...
 
 ## 英文版引用

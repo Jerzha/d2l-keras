@@ -66,6 +66,8 @@
 * [9.10 Fully Convolutional Network](https://nbviewer.jupyter.org/github/Jerzha/d2l-keras/blob/master/chapter9/9.10_fully_convolutional_network.ipynb)
 * [9.11 Neural Style Transfer](https://nbviewer.jupyter.org/github/Jerzha/d2l-keras/blob/master/chapter9/9.11_neural_style_transfer.ipynb)
 * [9.12 Kaggle Cifar10](https://nbviewer.jupyter.org/github/Jerzha/d2l-keras/blob/master/chapter9/9.12_kaggle_cifar10.ipynb)
+#### Chapter10 Natural Language Processing
+* [10.3 Word2vec](https://nbviewer.jupyter.org/github/Jerzha/d2l-keras/blob/master/chapter10/10.3_word2vec.ipynb)
 * UPDATING...
 
 ## Cite
